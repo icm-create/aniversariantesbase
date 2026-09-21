@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aniversariantes ICM</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e2230; --border:#2a2f3d;
+    --text:#e8eaed; --muted:#9aa3b2; --accent:#6c8cff; --accent2:#8a6cff;
+    --ok:#33c481; --warn:#e8b339; --bad:#e0546a; --radius:14px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,#0f1115,#12141b 400px);color:var(--text);min-height:100vh}
+  a{color:var(--accent)}
+  header.top{position:sticky;top:0;z-index:20;background:rgba(15,17,21,.9);backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  header.top h1{font-size:17px;margin:0;font-weight:700;display:flex;align-items:center;gap:8px}
+  header.top h1 span.emoji{font-size:20px}
+  .spacer{flex:1}
+  .pill{font-size:12px;color:var(--muted);background:var(--panel2);border:1px solid var(--border);
+    padding:5px 10px;border-radius:99px;white-space:nowrap}
+  button{cursor:pointer;font-family:inherit}
+  .btn{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:10px;
+    padding:9px 14px;font-size:13px;font-weight:600;transition:.15s}
+  .btn:hover{border-color:var(--accent)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:white}
+  .btn.ok{background:rgba(51,196,129,.15);border-color:var(--ok);color:var(--ok)}
+  .btn.bad{background:rgba(224,84,106,.15);border-color:var(--bad);color:var(--bad)}
+  .btn.small{padding:6px 10px;font-size:12px}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  nav.tabs{display:flex;gap:4px;padding:10px 24px 0;border-bottom:1px solid var(--border);
+    overflow-x:auto;background:var(--bg)}
+  nav.tabs button{background:transparent;border:none;color:var(--muted);padding:10px 16px;
+    font-size:13px;font-weight:600;border-bottom:2px solid transparent;white-space:nowrap}
+  nav.tabs button.active{color:var(--text);border-bottom-color:var(--accent)}
+  main{padding:24px;max-width:1300px;margin:0 auto}
+  .view{display:none}
+  .view.active{display:block}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:22px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+  .card .n{font-size:28px;font-weight:800}
+  .card .l{font-size:12px;color:var(--muted);margin-top:4px}
+  .card.ok .n{color:var(--ok)} .card.warn .n{color:var(--warn)} .card.bad .n{color:var(--bad)}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+    padding:18px;margin-bottom:20px}
+  .panel h2{font-size:15px;margin:0 0 4px;display:flex;align-items:center;gap:8px;justify-content:space-between}
+  .panel .sub{font-size:12px;color:var(--muted);margin-bottom:14px}
+  .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+  select,input[type=text],input[type=search]{background:var(--panel2);border:1px solid var(--border);
+    color:var(--text);border-radius:9px;padding:8px 10px;font-size:13px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;
+    letter-spacing:.03em;padding:8px 10px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--panel)}
+  tbody td{padding:9px 10px;border-bottom:1px solid var(--border)}
+  tbody tr:hover{background:var(--panel2)}
+  .tablewrap{max-height:480px;overflow:auto;border-radius:10px;border:1px solid var(--border)}
+  .badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:99px;display:inline-block}
+  .badge.sim{background:rgba(51,196,129,.15);color:var(--ok)}
+  .badge.nao{background:rgba(224,84,106,.15);color:var(--bad)}
+  .badge.avaliar{background:rgba(232,179,57,.15);color:var(--warn)}
+  .pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:10px;font-size:12px;color:var(--muted)}
+  .empty{color:var(--muted);font-size:13px;padding:20px;text-align:center}
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:100;padding:16px}
+  .overlay.show{display:flex}
+  .modal{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:22px;
+    max-width:420px;width:100%}
+  .modal h3{margin:0 0 6px;font-size:16px}
+  .modal p{color:var(--muted);font-size:13px;margin:0 0 16px}
+  .options{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
+  .options label{display:flex;align-items:center;gap:10px;background:var(--panel2);border:1px solid var(--border);
+    border-radius:10px;padding:10px 12px;font-size:13px;cursor:pointer}
+  .options label:has(input:checked){border-color:var(--accent)}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--panel2);
+    border:1px solid var(--border);padding:10px 18px;border-radius:10px;font-size:13px;z-index:200;
+    opacity:0;transition:.25s;pointer-events:none}
+  .toast.show{opacity:1}
+  .toast.ok{border-color:var(--ok);color:var(--ok)}
+  .toast.bad{border-color:var(--bad);color:var(--bad)}
+  .loading{text-align:center;padding:60px 20px;color:var(--muted)}
+  .loading .spin{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--accent);
+    border-radius:50%;margin:0 auto 14px;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .errbox{background:rgba(224,84,106,.1);border:1px solid var(--bad);border-radius:10px;padding:16px;font-size:13px;color:var(--text)}
+  input[type=file]{font-size:12px;color:var(--muted)}
+  .editcell select{padding:4px 6px;font-size:12px}
+  footer.foot{text-align:center;padding:30px;color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1><span class="emoji">🎂</span> Aniversariantes ICM</h1>
+  <span class="pill" id="pillUser">carregando…</span>
+  <span class="pill" id="pillUpdate">última atualização: —</span>
+  <div class="spacer"></div>
+  <button class="btn" id="btnReload">↻ Recarregar</button>
+  <button class="btn primary" id="btnUpdateData">⬆ Atualizar base de colaboradores</button>
+</header>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-view="dashboard">Dashboard</button>
+  <button class="tab-btn" data-view="geral">Tabela Geral</button>
+  <button class="tab-btn" data-view="cargos">Cargos</button>
+  <button class="tab-btn" data-view="centros">Centros de Custo</button>
+  <button class="tab-btn" data-view="colaboradores">Confirmações individuais</button>
+  <button class="tab-btn" data-view="log">Histórico</button>
+</nav>
+
+<main>
+
+  <div id="globalLoading" class="loading"><div class="spin"></div>Carregando dados…</div>
+  <div id="globalError" style="display:none" class="errbox"></div>
+  <div id="appRoot" style="display:none">
+
+    <!-- DASHBOARD -->
+    <section class="view active" id="view-dashboard">
+      <div class="toolbar">
+        <label style="font-size:13px;color:var(--muted)">Mês:</label>
+        <select id="mesSelect"></select>
+      </div>
+
+      <div class="cards">
+        <div class="card ok"><div class="n" id="cardSim">0</div><div class="l">Válidos (SIM) no mês</div></div>
+        <div class="card warn"><div class="n" id="cardAvaliar">0</div><div class="l">A avaliar no mês</div></div>
+        <div class="card warn"><div class="n" id="cardCargos">0</div><div class="l">Cargos não classificados</div></div>
+        <div class="card warn"><div class="n" id="cardCentros">0</div><div class="l">Centros de custo não classificados</div></div>
+      </div>
+
+      <div class="panel">
+        <h2>Aniversariantes válidos do mês</h2>
+        <div class="sub">Status atual: SIM</div>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Dia</th><th>Nome</th><th>Cargo</th><th>Centro de Custo</th><th>Gestor</th></tr></thead>
+          <tbody id="tblSim"></tbody>
+        </table></div>
+      </div>
+
+      <div class="panel">
+        <h2>A avaliar no mês</h2>
+        <div class="sub">Confirme ou rejeite — a escolha atualiza as tabelas de validação automaticamente</div>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Dia</th><th>Nome</th><th>Cargo</th><th>Centro de Custo</th><th>Gestor</th><th>Ação</th></tr></thead>
+          <tbody id="tblAvaliar"></tbody>
+        </table></div>
+      </div>
+
+      <div class="panel">
+        <h2>Cargos não classificados</h2>
+        <div class="sub">Aparecem na base mas não existem na tabela de cargos válidos (de qualquer mês)</div>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Cargo</th><th>Ocorrências</th><th>Ação</th></tr></thead>
+          <tbody id="tblCargosNovos"></tbody>
+        </table></div>
+      </div>
+
+      <div class="panel">
+        <h2>Centros de custo não classificados</h2>
+        <div class="sub">Aparecem na base mas não existem na tabela de centros de custo válidos (de qualquer mês)</div>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Centro de Custo</th><th>Ocorrências</th><th>Ação</th></tr></thead>
+          <tbody id="tblCentrosNovos"></tbody>
+        </table></div>
+      </div>
+    </section>
+
+    <!-- TABELA GERAL -->
+    <section class="view" id="view-geral">
+      <div class="panel">
+        <h2>Tabela geral de colaboradores ativos</h2>
+        <div class="toolbar">
+          <input type="search" id="geralBusca" placeholder="Buscar por nome, cargo, centro de custo…" style="min-width:260px">
+          <select id="geralStatus">
+            <option value="">Todos os status</option>
+            <option value="SIM">SIM</option>
+            <option value="AVALIAR">AVALIAR</option>
+            <option value="NÃO">NÃO</option>
+          </select>
+          <select id="geralMes"><option value="">Todos os meses</option></select>
+          <span class="pill" id="geralCount"></span>
+        </div>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Matrícula</th><th>Nome</th><th>Cargo</th><th>Centro de Custo</th><th>Gestor</th><th>Nascimento</th><th>Status</th></tr></thead>
+          <tbody id="tblGeral"></tbody>
+        </table></div>
+        <div class="pager">
+          <button class="btn small" id="geralPrev">◀</button>
+          <span id="geralPageInfo">página 1</span>
+          <button class="btn small" id="geralNext">▶</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- CARGOS -->
+    <section class="view" id="view-cargos">
+      <div class="panel">
+        <h2>Tabela de cargos válidos</h2>
+        <div class="sub">Edição direta — altera a planilha de validação usada pela regra de negócio</div>
+        <div class="toolbar"><input type="search" id="cargoBusca" placeholder="Buscar cargo…" style="min-width:260px"></div>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Cargo</th><th>Cargo válido</th><th>Diretor corporativo</th><th>Executivo de conta</th></tr></thead>
+          <tbody id="tblCargos"></tbody>
+        </table></div>
+      </div>
+    </section>
+
+    <!-- CENTROS -->
+    <section class="view" id="view-centros">
+      <div class="panel">
+        <h2>Tabela de centros de custo válidos</h2>
+        <div class="sub">Edição direta — altera a planilha de validação usada pela regra de negócio</div>
+        <div class="toolbar"><input type="search" id="centroBusca" placeholder="Buscar centro de custo…" style="min-width:260px"></div>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Centro de Custo</th><th>Centro de custo válido</th></tr></thead>
+          <tbody id="tblCentros"></tbody>
+        </table></div>
+      </div>
+    </section>
+
+    <!-- CONFIRMAÇÕES INDIVIDUAIS (COLABORADORES A CONSIDERAR / MATRICULAS A DESCONSIDERAR) -->
+    <section class="view" id="view-colaboradores">
+      <div class="panel">
+        <h2>Colaboradores com confirmação individual</h2>
+        <div class="sub">Pessoas confirmadas/rejeitadas independentemente do cargo ou centro de custo</div>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Colaborador</th><th>Considerar colaborador</th></tr></thead>
+          <tbody id="tblConsiderar"></tbody>
+        </table></div>
+      </div>
+      <div class="panel">
+        <h2>Matrículas a desconsiderar</h2>
+        <div class="sub">Ex.: matrículas duplicadas do sistema de origem</div>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Matrícula</th><th>Colaborador</th><th>Desconsiderar</th><th>Motivo</th></tr></thead>
+          <tbody id="tblDesconsiderar"></tbody>
+        </table></div>
+      </div>
+    </section>
+
+    <!-- LOG -->
+    <section class="view" id="view-log">
+      <div class="panel">
+        <h2>Histórico de confirmações e alterações</h2>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Data/Hora</th><th>Usuário</th><th>Ação</th><th>Alvo</th><th>Motivo</th><th>Detalhes</th></tr></thead>
+          <tbody id="tblLog"></tbody>
+        </table></div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<footer class="foot">Aplicação interna ICM · dados armazenados em Google Sheets, acesso restrito ao domínio corporativo</footer>
+
+<!-- MODAL: confirmar/rejeitar colaborador -->
+<div class="overlay" id="modalMotivo">
+  <div class="modal">
+    <h3 id="modalTitle">Confirmar aniversariante</h3>
+    <p id="modalSub"></p>
+    <div class="options" id="modalOptions"></div>
+    <div class="modal-actions">
+      <button class="btn" id="modalCancel">Cancelar</button>
+      <button class="btn primary" id="modalConfirm">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: atualizar base -->
+<div class="overlay" id="modalUpdate">
+  <div class="modal">
+    <h3>Atualizar base de colaboradores</h3>
+    <p>Selecione o arquivo Excel exportado do LG (mesma estrutura da tabela <code>db_comercial_colaboradoreslg</code>). A aba DADOS da planilha será substituída pelo conteúdo do arquivo.</p>
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+    <p id="updateStatus" style="margin-top:10px"></p>
+    <div class="modal-actions">
+      <button class="btn" id="updateCancel">Cancelar</button>
+      <button class="btn primary" id="updateConfirm" disabled>Enviar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================================
+   CONFIGURAÇÃO — cole aqui a URL do seu Apps Script implantado como App da Web
+   (Extensões > Apps Script > Implantar > Nova implantação > App da Web)
+   ========================================================================= */
+const API_URL = "https://script.google.com/macros/s/AKfycbz9N7Xlt8QoEZIpORXR9KVULOJM73x02eNSiqbXtIwEDDMYppYc7toED7lbD1Dp-0L3/exec";
+
+const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho',
+               'agosto','setembro','outubro','novembro','dezembro'];
+
+let STATE = null;         // payload completo do backend
+let mesAtual = new Date().getMonth() + 1;
+let geralPage = 0;
+const GERAL_PAGE_SIZE = 60;
+
+// ---------- fetch helpers ----------
+async function apiGet() {
+  const res = await fetch(API_URL + '?action=data', { method: 'GET' });
+  return res.json();
+}
+async function apiPost(payload) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // evita preflight CORS no Apps Script
+    body: JSON.stringify(payload)
+  });
+  return res.json();
+}
+
+function toast(msg, kind) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (kind || '');
+  setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+function badge(status) {
+  const cls = status === 'SIM' ? 'sim' : status === 'AVALIAR' ? 'avaliar' : 'nao';
+  return `<span class="badge ${cls}">${status}</span>`;
+}
+
+// ---------- carregar dados ----------
+async function loadData() {
+  document.getElementById('globalLoading').style.display = 'block';
+  document.getElementById('globalError').style.display = 'none';
+  document.getElementById('appRoot').style.display = 'none';
+  try {
+    if (!API_URL || API_URL.indexOf('COLE_AQUI') > -1) {
+      throw new Error('Configure a constante API_URL no topo do arquivo index.html com a URL do seu Apps Script implantado.');
+    }
+    const data = await apiGet();
+    if (!data.ok) throw new Error(data.error || 'Erro desconhecido do servidor');
+    STATE = data;
+    document.getElementById('pillUser').textContent = '👤 ' + (data.usuario || 'desconhecido');
+    document.getElementById('pillUpdate').textContent = 'última atualização: ' + (data.ultimaAtualizacao || '—');
+    document.getElementById('globalLoading').style.display = 'none';
+    document.getElementById('appRoot').style.display = 'block';
+    renderAll();
+  } catch (err) {
+    document.getElementById('globalLoading').style.display = 'none';
+    const box = document.getElementById('globalError');
+    box.style.display = 'block';
+    box.innerHTML = '<b>Não foi possível carregar os dados.</b><br>' + String(err.message || err) +
+      '<br><br>Se você não estiver logado com sua conta Google corporativa, abra a URL do Apps Script diretamente em outra aba para autenticar e tente novamente.';
+  }
+}
+
+function renderAll() {
+  buildMesSelect();
+  renderDashboard();
+  renderGeral();
+  renderCargos();
+  renderCentros();
+  renderConsiderar();
+  renderDesconsiderar();
+  renderLog();
+}
+
+function buildMesSelect() {
+  const sel = document.getElementById('mesSelect');
+  sel.innerHTML = MESES.map((m, i) => `<option value="${i+1}">${m}</option>`).join('');
+  sel.value = mesAtual;
+  sel.onchange = () => { mesAtual = parseInt(sel.value, 10); renderDashboard(); };
+
+  const gm = document.getElementById('geralMes');
+  gm.innerHTML = '<option value="">Todos os meses</option>' + MESES.map((m, i) => `<option value="${i+1}">${m}</option>`).join('');
+}
+
+// ---------- DASHBOARD ----------
+function renderDashboard() {
+  const doMes = STATE.dados.filter(d => d.mesAniversario === mesAtual);
+  const sim = doMes.filter(d => d.analiseFinal === 'SIM').sort((a,b) => a.diaAniversario - b.diaAniversario);
+  const avaliar = doMes.filter(d => d.analiseFinal === 'AVALIAR').sort((a,b) => a.diaAniversario - b.diaAniversario);
+
+  document.getElementById('cardSim').textContent = sim.length;
+  document.getElementById('cardAvaliar').textContent = avaliar.length;
+  document.getElementById('cardCargos').textContent = STATE.cargosNaoClassificados.length;
+  document.getElementById('cardCentros').textContent = STATE.centrosNaoClassificados.length;
+
+  document.getElementById('tblSim').innerHTML = sim.length ? sim.map(d => `
+    <tr><td>${d.diaAniversario}</td><td>${d.nome}</td><td>${d.cargo||''}</td><td>${d.centroCusto||''}</td><td>${d.gestor||''}</td></tr>
+  `).join('') : `<tr><td colspan="5" class="empty">Nenhum aniversariante válido neste mês.</td></tr>`;
+
+  document.getElementById('tblAvaliar').innerHTML = avaliar.length ? avaliar.map(d => `
+    <tr>
+      <td>${d.diaAniversario}</td><td>${d.nome}</td><td>${d.cargo||''}</td><td>${d.centroCusto||''}</td><td>${d.gestor||''}</td>
+      <td>
+        <button class="btn ok small" onclick='openMotivoModal("colaborador","confirmar",${JSON.stringify(d.matricula)},${JSON.stringify(d.nome)})'>Confirmar</button>
+        <button class="btn bad small" onclick='openMotivoModal("colaborador","rejeitar",${JSON.stringify(d.matricula)},${JSON.stringify(d.nome)})'>Rejeitar</button>
+      </td>
+    </tr>
+  `).join('') : `<tr><td colspan="6" class="empty">Nenhum caso a avaliar neste mês.</td></tr>`;
+
+  document.getElementById('tblCargosNovos').innerHTML = STATE.cargosNaoClassificados.length ? STATE.cargosNaoClassificados.map(c => `
+    <tr>
+      <td>${c.cargo}</td><td>${c.ocorrencias}</td>
+      <td>
+        <button class="btn ok small" onclick='openMotivoModal("cargo","confirmar",null,${JSON.stringify(c.cargo)})'>Confirmar</button>
+        <button class="btn bad small" onclick='acaoRapida("rejeitarCargo",{cargo:${JSON.stringify(c.cargo)}})'>Rejeitar (inválido)</button>
+      </td>
+    </tr>
+  `).join('') : `<tr><td colspan="3" class="empty">Nenhum cargo pendente de classificação.</td></tr>`;
+
+  document.getElementById('tblCentrosNovos').innerHTML = STATE.centrosNaoClassificados.length ? STATE.centrosNaoClassificados.map(c => `
+    <tr>
+      <td>${c.centro}</td><td>${c.ocorrencias}</td>
+      <td>
+        <button class="btn ok small" onclick='acaoRapida("confirmarCentro",{centro:${JSON.stringify(c.centro)}})'>Confirmar válido</button>
+        <button class="btn bad small" onclick='acaoRapida("rejeitarCentro",{centro:${JSON.stringify(c.centro)}})'>Rejeitar</button>
+      </td>
+    </tr>
+  `).join('') : `<tr><td colspan="3" class="empty">Nenhum centro de custo pendente de classificação.</td></tr>`;
+}
+
+// ---------- MODAL DE MOTIVO ----------
+const MOTIVOS = [
+  { v: 'executivo', l: 'É executivo de conta' },
+  { v: 'diretor', l: 'É diretor' },
+  { v: 'cargo', l: 'O cargo é válido' },
+  { v: 'centro', l: 'É pelo centro de custo válido' },
+  { v: 'colaborador', l: 'Apenas confirmação do colaborador (individual)' }
+];
+
+let pendingAction = null;
+
+function openMotivoModal(tipo, acao, matricula, nomeOuCargo) {
+  const isConfirmar = acao === 'confirmar';
+  document.getElementById('modalTitle').textContent = (isConfirmar ? 'Confirmar' : 'Rejeitar') + ': ' + nomeOuCargo;
+  document.getElementById('modalSub').textContent = isConfirmar
+    ? 'Por que este caso deve ser considerado válido?'
+    : 'Por que este caso deve ser rejeitado?';
+
+  const opts = tipo === 'colaborador' ? MOTIVOS : MOTIVOS.filter(m => m.v === 'cargo' || m.v === 'diretor' || m.v === 'executivo');
+  document.getElementById('modalOptions').innerHTML = opts.map((m, i) => `
+    <label><input type="radio" name="motivo" value="${m.v}" ${i===0?'checked':''}> ${m.l}</label>
+  `).join('');
+
+  document.getElementById('modalConfirm').className = 'btn ' + (isConfirmar ? 'primary' : 'bad');
+  document.getElementById('modalConfirm').textContent = isConfirmar ? 'Confirmar' : 'Rejeitar';
+
+  pendingAction = { tipo, acao, matricula, nomeOuCargo };
+  document.getElementById('modalMotivo').classList.add('show');
+}
+
+document.getElementById('modalCancel').onclick = () => document.getElementById('modalMotivo').classList.remove('show');
+
+document.getElementById('modalConfirm').onclick = async () => {
+  const motivo = document.querySelector('input[name=motivo]:checked')?.value;
+  if (!motivo || !pendingAction) return;
+  document.getElementById('modalMotivo').classList.remove('show');
+
+  const { tipo, acao, matricula, nomeOuCargo } = pendingAction;
+  let action;
+  let payload;
+  if (tipo === 'colaborador') {
+    action = acao === 'confirmar' ? 'confirmarColaborador' : 'rejeitarColaborador';
+    payload = { action, matricula, motivo };
+  } else if (tipo === 'cargo') {
+    // motivo aqui é diretor / executivo / cargo — usamos endpoint genérico de cargo
+    const campo = motivo === 'diretor' ? 'DIRETOR CORPORATIVO' : motivo === 'executivo' ? 'EXECUTIVO DE CONTA' : 'CARGO VÁLIDO';
+    action = 'atualizarCargoCampo';
+    payload = { action, cargo: nomeOuCargo, campo, valor: 'Sim' };
+  }
+  await runAction(payload, 'Alteração salva.');
+};
+
+async function acaoRapida(action, extra) {
+  await runAction(Object.assign({ action }, extra), 'Alteração salva.');
+}
+
+async function runAction(payload, successMsg) {
+  try {
+    const res = await apiPost(payload);
+    if (!res.ok) throw new Error(res.error || 'Falha ao salvar');
+    toast(successMsg, 'ok');
+    await loadData();
+  } catch (err) {
+    toast('Erro: ' + (err.message || err), 'bad');
+  }
+}
+
+// ---------- TABELA GERAL ----------
+function currentGeralFiltered() {
+  const busca = document.getElementById('geralBusca').value.trim().toLowerCase();
+  const status = document.getElementById('geralStatus').value;
+  const mes = document.getElementById('geralMes').value;
+  return STATE.dados.filter(d => {
+    if (status && d.analiseFinal !== status) return false;
+    if (mes && d.mesAniversario !== parseInt(mes, 10)) return false;
+    if (busca) {
+      const hay = (d.nome + ' ' + d.cargo + ' ' + d.centroCusto).toLowerCase();
+      if (hay.indexOf(busca) === -1) return false;
+    }
+    return true;
+  });
+}
+
+function renderGeral() {
+  const filtered = currentGeralFiltered();
+  document.getElementById('geralCount').textContent = filtered.length + ' registros';
+  const start = geralPage * GERAL_PAGE_SIZE;
+  const pageRows = filtered.slice(start, start + GERAL_PAGE_SIZE);
+  document.getElementById('tblGeral').innerHTML = pageRows.length ? pageRows.map(d => `
+    <tr>
+      <td>${d.matricula}</td><td>${d.nome}</td><td>${d.cargo||''}</td><td>${d.centroCusto||''}</td>
+      <td>${d.gestor||''}</td><td>${d.dataNascimento||''}</td><td>${badge(d.analiseFinal)}</td>
+    </tr>
+  `).join('') : `<tr><td colspan="7" class="empty">Nenhum registro encontrado.</td></tr>`;
+  document.getElementById('geralPageInfo').textContent =
+    `página ${filtered.length ? geralPage+1 : 0} de ${Math.max(1, Math.ceil(filtered.length / GERAL_PAGE_SIZE))}`;
+}
+
+document.getElementById('geralBusca').oninput = () => { geralPage = 0; renderGeral(); };
+document.getElementById('geralStatus').onchange = () => { geralPage = 0; renderGeral(); };
+document.getElementById('geralMes').onchange = () => { geralPage = 0; renderGeral(); };
+document.getElementById('geralPrev').onclick = () => { if (geralPage > 0) { geralPage--; renderGeral(); } };
+document.getElementById('geralNext').onclick = () => {
+  const total = Math.ceil(currentGeralFiltered().length / GERAL_PAGE_SIZE);
+  if (geralPage < total - 1) { geralPage++; renderGeral(); }
+};
+
+// ---------- CARGOS ----------
+function selectSimNao(value, onchangeAttr) {
+  return `<select class="editcell" ${onchangeAttr}>
+    <option value="Sim" ${value==='Sim'?'selected':''}>Sim</option>
+    <option value="Não" ${value==='Não'?'selected':''}>Não</option>
+    <option value="" ${!value?'selected':''}>—</option>
+  </select>`;
+}
+
+function renderCargos() {
+  const busca = (document.getElementById('cargoBusca').value || '').toLowerCase();
+  const rows = STATE.cargos.filter(c => !busca || (c.CARGO||'').toLowerCase().indexOf(busca) > -1);
+  document.getElementById('tblCargos').innerHTML = rows.length ? rows.map(c => `
+    <tr>
+      <td>${c.CARGO}</td>
+      <td>${selectSimNao(c['CARGO VÁLIDO'], `onchange='setCargoField(${JSON.stringify(c.CARGO)},"CARGO VÁLIDO",this.value)'`)}</td>
+      <td>${selectSimNao(c['DIRETOR CORPORATIVO'], `onchange='setCargoField(${JSON.stringify(c.CARGO)},"DIRETOR CORPORATIVO",this.value)'`)}</td>
+      <td>${selectSimNao(c['EXECUTIVO DE CONTA'], `onchange='setCargoField(${JSON.stringify(c.CARGO)},"EXECUTIVO DE CONTA",this.value)'`)}</td>
+    </tr>
+  `).join('') : `<tr><td colspan="4" class="empty">Nenhum cargo cadastrado ainda.</td></tr>`;
+}
+async function setCargoField(cargo, campo, valor) {
+  await runAction({ action: 'atualizarCargoCampo', cargo, campo, valor }, 'Cargo atualizado.');
+}
+document.getElementById('cargoBusca').oninput = renderCargos;
+
+// ---------- CENTROS ----------
+function renderCentros() {
+  const busca = (document.getElementById('centroBusca').value || '').toLowerCase();
+  const rows = STATE.centros.filter(c => !busca || (c['CENTRO DE CUSTO']||'').toLowerCase().indexOf(busca) > -1);
+  document.getElementById('tblCentros').innerHTML = rows.length ? rows.map(c => `
+    <tr>
+      <td>${c['CENTRO DE CUSTO']}</td>
+      <td>${selectSimNao(c['CENTRO DE CUSTO VÁLIDO'], `onchange='setCentroField(${JSON.stringify(c['CENTRO DE CUSTO'])},this.value)'`)}</td>
+    </tr>
+  `).join('') : `<tr><td colspan="2" class="empty">Nenhum centro de custo cadastrado ainda.</td></tr>`;
+}
+async function setCentroField(centro, valor) {
+  await runAction({ action: 'atualizarCentroCampo', centro, valor }, 'Centro de custo atualizado.');
+}
+document.getElementById('centroBusca').oninput = renderCentros;
+
+// ---------- CONSIDERAR / DESCONSIDERAR ----------
+function renderConsiderar() {
+  document.getElementById('tblConsiderar').innerHTML = STATE.considerar.length ? STATE.considerar.map(c => `
+    <tr><td>${c.COLABORADOR}</td><td>${selectSimNao(c['CONSIDERAR COLABORADOR'], `onchange='setConsiderarField(${JSON.stringify(c.COLABORADOR)},this.value)'`)}</td></tr>
+  `).join('') : `<tr><td colspan="2" class="empty">Nenhuma confirmação individual registrada ainda.</td></tr>`;
+}
+async function setConsiderarField(nome, valor) {
+  await runAction({ action: 'atualizarConsiderar', nome, valor }, 'Registro atualizado.');
+}
+
+function renderDesconsiderar() {
+  document.getElementById('tblDesconsiderar').innerHTML = STATE.desconsiderar.length ? STATE.desconsiderar.map(c => `
+    <tr><td>${c.MATRICULA}</td><td>${c.COLABORADOR||''}</td><td>${c['DESCONSIDERAR MATRICULA']||''}</td><td>${c.MOTIVO||''}</td></tr>
+  `).join('') : `<tr><td colspan="4" class="empty">Nenhuma matrícula a desconsiderar registrada.</td></tr>`;
+}
+
+// ---------- LOG ----------
+function renderLog() {
+  document.getElementById('tblLog').innerHTML = STATE.log.length ? STATE.log.map(l => `
+    <tr><td>${l.DataHora ? new Date(l.DataHora).toLocaleString('pt-BR') : ''}</td><td>${l.Usuario||''}</td>
+    <td>${l.Acao||''}</td><td>${l.Alvo||''}</td><td>${l.Motivo||''}</td><td>${l.Detalhes||''}</td></tr>
+  `).join('') : `<tr><td colspan="6" class="empty">Nenhuma ação registrada ainda.</td></tr>`;
+}
+
+// ---------- NAV TABS ----------
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('view-' + btn.dataset.view).classList.add('active');
+  };
+});
+
+document.getElementById('btnReload').onclick = loadData;
+
+// ---------- ATUALIZAR BASE (upload xlsx) ----------
+document.getElementById('btnUpdateData').onclick = () => document.getElementById('modalUpdate').classList.add('show');
+document.getElementById('updateCancel').onclick = () => document.getElementById('modalUpdate').classList.remove('show');
+
+let parsedRows = null;
+document.getElementById('fileInput').onchange = (e) => {
+  const file = e.target.files[0];
+  const statusEl = document.getElementById('updateStatus');
+  const btn = document.getElementById('updateConfirm');
+  btn.disabled = true;
+  parsedRows = null;
+  if (!file) return;
+  statusEl.textContent = 'Lendo arquivo…';
+
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    try {
+      const wb = XLSX.read(evt.target.result, { type: 'array', cellDates: true });
+      // procura a primeira planilha cujo cabeçalho contenha "Matricula" e "Nome"
+      let sheetRows = null;
+      for (const sn of wb.SheetNames) {
+        const json = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: '' });
+        if (json.length && Object.keys(json[0]).some(k => k.toLowerCase() === 'matricula')) {
+          sheetRows = json; break;
+        }
+      }
+      if (!sheetRows) throw new Error('Nenhuma aba com colunas "Matricula"/"Nome" foi encontrada no arquivo.');
+
+      parsedRows = sheetRows.map(r => {
+        const get = (name) => {
+          const k = Object.keys(r).find(kk => kk.toLowerCase() === name.toLowerCase());
+          return k ? r[k] : '';
+        };
+        const dateISO = (v) => {
+          if (v instanceof Date) return v.toISOString().slice(0,10);
+          return v || '';
+        };
+        return {
+          Matricula: get('Matricula'),
+          Nome: get('Nome'),
+          Cargo: get('Cargo'),
+          DataNascimento: dateISO(get('DataNascimento')),
+          DataAdmissao: dateISO(get('DataAdmissao')),
+          DataDesligamento: dateISO(get('DataDesligamento')),
+          Gestor: get('Gestor'),
+          CentroCustoNome: get('CentroCustoNome'),
+          EmailCorporativo: get('EmailCorporativo')
+        };
+      });
+      statusEl.textContent = `${parsedRows.length} linhas lidas e prontas para envio.`;
+      btn.disabled = false;
+    } catch (err) {
+      statusEl.textContent = 'Erro ao ler arquivo: ' + err.message;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+};
+
+document.getElementById('updateConfirm').onclick = async () => {
+  if (!parsedRows) return;
+  const statusEl = document.getElementById('updateStatus');
+  statusEl.textContent = 'Enviando ' + parsedRows.length + ' linhas…';
+  try {
+    const res = await apiPost({ action: 'atualizarDados', rows: parsedRows });
+    if (!res.ok) throw new Error(res.error || 'Falha ao atualizar');
+    statusEl.textContent = 'Base atualizada com sucesso!';
+    setTimeout(() => {
+      document.getElementById('modalUpdate').classList.remove('show');
+      loadData();
+    }, 800);
+  } catch (err) {
+    statusEl.textContent = 'Erro: ' + err.message;
+  }
+};
+
+// ---------- INIT ----------
+loadData();
+</script>
+</body>
+</html>
