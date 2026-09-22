@@ -49,7 +49,7 @@
   .panel h2{font-size:15px;margin:0 0 4px;display:flex;align-items:center;gap:8px;justify-content:space-between}
   .panel .sub{font-size:12px;color:var(--muted);margin-bottom:14px}
   .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
-  select,input[type=text],input[type=search]{background:var(--panel2);border:1px solid var(--border);
+  select,input[type=text],input[type=search],input[type=date]{background:var(--panel2);border:1px solid var(--border);
     color:var(--text);border-radius:9px;padding:8px 10px;font-size:13px}
   table{width:100%;border-collapse:collapse;font-size:13px}
   thead th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;
@@ -70,6 +70,11 @@
   .modal h3{margin:0 0 6px;font-size:16px}
   .modal p{color:var(--muted);font-size:13px;margin:0 0 16px}
   .options{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
+  .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+  .field-grid .full{grid-column:1/-1}
+  .field-grid label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+  .field-grid input{width:100%}
+  .tag{font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;background:rgba(108,140,255,.15);color:var(--accent);margin-left:6px;vertical-align:middle}
   .options label{display:flex;align-items:center;gap:10px;background:var(--panel2);border:1px solid var(--border);
     border-radius:10px;padding:10px 12px;font-size:13px;cursor:pointer}
   .options label:has(input:checked){border-color:var(--accent)}
@@ -98,7 +103,10 @@
   <span class="pill" id="pillUpdate">última atualização: —</span>
   <div class="spacer"></div>
   <button class="btn" id="btnReload">↻ Recarregar</button>
-  <button class="btn primary" id="btnUpdateData">⬆ Atualizar base de colaboradores</button>
+  <button class="btn primary" id="btnUpdateFromDrive">↻ Atualizar base (do Drive)</button>
+  <button class="btn small" id="btnUpdateData" title="Enviar um arquivo manualmente, caso o Drive não esteja acessível">⬆ Enviar arquivo</button>
+  <button class="btn" id="btnSettings" title="Configurações">⚙</button>
+  <button class="btn primary" id="btnAddManual" title="Incluir alguém que não vem na base do LG (PJ, estagiário, consultor...)">+ Colaborador</button>
 </header>
 
 <nav class="tabs">
@@ -141,9 +149,14 @@
 
       <div class="panel">
         <h2>A avaliar no mês</h2>
-        <div class="sub">Confirme ou rejeite — a escolha atualiza as tabelas de validação automaticamente</div>
+        <div class="sub">Confirme ou rejeite — a escolha atualiza as tabelas de validação automaticamente. Selecione vários para aplicar o mesmo motivo de uma vez.</div>
+        <div class="toolbar" id="avaliarBulkBar" style="display:none">
+          <span class="pill" id="avaliarSelCount">0 selecionados</span>
+          <button class="btn ok small" id="avaliarBulkConfirm">Confirmar selecionados</button>
+          <button class="btn bad small" id="avaliarBulkReject">Rejeitar selecionados</button>
+        </div>
         <div class="tablewrap"><table>
-          <thead><tr><th>Dia</th><th>Nome</th><th>Cargo</th><th>Centro de Custo</th><th>Gestor</th><th>Ação</th></tr></thead>
+          <thead><tr><th><input type="checkbox" id="avaliarSelectAll"></th><th>Dia</th><th>Nome</th><th>Cargo</th><th>Centro de Custo</th><th>Gestor</th><th>Ação</th></tr></thead>
           <tbody id="tblAvaliar"></tbody>
         </table></div>
       </div>
@@ -151,8 +164,13 @@
       <div class="panel">
         <h2>Cargos não classificados</h2>
         <div class="sub">Aparecem na base mas não existem na tabela de cargos válidos (de qualquer mês)</div>
+        <div class="toolbar" id="cargosBulkBar" style="display:none">
+          <span class="pill" id="cargosSelCount">0 selecionados</span>
+          <button class="btn ok small" id="cargosBulkConfirm">Confirmar selecionados</button>
+          <button class="btn bad small" id="cargosBulkReject">Rejeitar selecionados (inválido)</button>
+        </div>
         <div class="tablewrap"><table>
-          <thead><tr><th>Cargo</th><th>Ocorrências</th><th>Ação</th></tr></thead>
+          <thead><tr><th><input type="checkbox" id="cargosSelectAll"></th><th>Cargo</th><th>Ocorrências</th><th>Ação</th></tr></thead>
           <tbody id="tblCargosNovos"></tbody>
         </table></div>
       </div>
@@ -160,8 +178,13 @@
       <div class="panel">
         <h2>Centros de custo não classificados</h2>
         <div class="sub">Aparecem na base mas não existem na tabela de centros de custo válidos (de qualquer mês)</div>
+        <div class="toolbar" id="centrosBulkBar" style="display:none">
+          <span class="pill" id="centrosSelCount">0 selecionados</span>
+          <button class="btn ok small" id="centrosBulkConfirm">Confirmar selecionados (válido)</button>
+          <button class="btn bad small" id="centrosBulkReject">Rejeitar selecionados</button>
+        </div>
         <div class="tablewrap"><table>
-          <thead><tr><th>Centro de Custo</th><th>Ocorrências</th><th>Ação</th></tr></thead>
+          <thead><tr><th><input type="checkbox" id="centrosSelectAll"></th><th>Centro de Custo</th><th>Ocorrências</th><th>Ação</th></tr></thead>
           <tbody id="tblCentrosNovos"></tbody>
         </table></div>
       </div>
@@ -223,6 +246,14 @@
     <!-- CONFIRMAÇÕES INDIVIDUAIS (COLABORADORES A CONSIDERAR / MATRICULAS A DESCONSIDERAR) -->
     <section class="view" id="view-colaboradores">
       <div class="panel">
+        <h2>Colaboradores incluídos manualmente</h2>
+        <div class="sub">PJ, estagiários, consultores etc. — não vêm da base do LG e não são apagados quando ela é atualizada</div>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Matrícula</th><th>Nome</th><th>Cargo</th><th>Centro de Custo</th><th>Nascimento</th><th>Status</th><th>Ação</th></tr></thead>
+          <tbody id="tblManuais"></tbody>
+        </table></div>
+      </div>
+      <div class="panel">
         <h2>Colaboradores com confirmação individual</h2>
         <div class="sub">Pessoas confirmadas/rejeitadas independentemente do cargo ou centro de custo</div>
         <div class="tablewrap"><table>
@@ -269,11 +300,11 @@
   </div>
 </div>
 
-<!-- MODAL: atualizar base -->
+<!-- MODAL: atualizar base (upload manual — alternativa) -->
 <div class="overlay" id="modalUpdate">
   <div class="modal">
-    <h3>Atualizar base de colaboradores</h3>
-    <p>Selecione o arquivo Excel exportado do LG (mesma estrutura da tabela <code>db_comercial_colaboradoreslg</code>). A aba DADOS da planilha será substituída pelo conteúdo do arquivo.</p>
+    <h3>Enviar arquivo manualmente</h3>
+    <p>Use isso apenas se a atualização automática pelo Drive não estiver disponível. Selecione o arquivo Excel exportado do LG (mesma estrutura da tabela <code>db_comercial_colaboradoreslg</code>). A aba DADOS da planilha será substituída pelo conteúdo do arquivo.</p>
     <input type="file" id="fileInput" accept=".xlsx,.xls">
     <p id="updateStatus" style="margin-top:10px"></p>
     <div class="modal-actions">
@@ -285,12 +316,82 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- MODAL: configurações -->
+<div class="overlay" id="modalSettings">
+  <div class="modal" style="max-width:520px">
+    <h3>Configurações</h3>
+
+    <p style="margin-bottom:6px"><b>Planilha do LG (Drive)</b></p>
+    <p>Cole o link ou o ID da Google Sheet do LG. Vale para todo mundo que usa a
+      aplicação — não precisa mexer em código.</p>
+    <input type="text" id="settingsDriveInput" placeholder="https://docs.google.com/spreadsheets/d/.../edit"
+      style="width:100%;margin-bottom:8px">
+    <button class="btn primary small" id="settingsDriveSave">Salvar planilha do LG</button>
+    <p id="settingsDriveStatus" style="margin-top:8px"></p>
+
+    <hr style="border-color:var(--border);margin:20px 0">
+
+    <p style="margin-bottom:6px"><b>URL do Apps Script — testar só neste navegador</b></p>
+    <p>Isso <u>não</u> muda a URL para as outras pessoas — é só uma forma de
+      testar uma implantação nova antes de editar o <code>index.html</code> e
+      publicar no GitHub de verdade (que aí sim vale para todo mundo).</p>
+    <input type="text" id="settingsApiInput" placeholder="https://script.google.com/macros/s/.../exec"
+      style="width:100%;margin-bottom:8px">
+    <div style="display:flex;gap:8px">
+      <button class="btn small" id="settingsApiSave">Usar neste navegador</button>
+      <button class="btn small" id="settingsApiClear">Voltar ao padrão do arquivo</button>
+    </div>
+    <p id="settingsApiStatus" style="margin-top:8px"></p>
+
+    <div class="modal-actions">
+      <button class="btn" id="settingsClose">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: adicionar colaborador manual -->
+<div class="overlay" id="modalAddManual">
+  <div class="modal" style="max-width:560px">
+    <h3>Incluir colaborador</h3>
+    <p>Para quem não vem no export do LG (PJ, estagiário, consultor fixo etc.).
+      Fica salvo numa aba separada e <b>não é apagado</b> quando a base do LG
+      for atualizada.</p>
+
+    <div class="field-grid">
+      <div class="full"><label>Nome *</label><input type="text" id="addNome"></div>
+      <div><label>Cargo</label><input type="text" id="addCargo"></div>
+      <div><label>Data de nascimento *</label><input type="date" id="addNascimento"></div>
+      <div><label>Centro de custo</label><input type="text" id="addCentro"></div>
+      <div><label>Gestor</label><input type="text" id="addGestor"></div>
+      <div><label>Data de admissão</label><input type="date" id="addAdmissao"></div>
+      <div><label>E-mail</label><input type="text" id="addEmail"></div>
+      <div class="full">
+        <label>Matrícula (opcional — se deixar em branco, um código é gerado automaticamente)</label>
+        <input type="text" id="addMatricula" placeholder="ex.: PJ-00123">
+      </div>
+    </div>
+
+    <p id="addManualStatus"></p>
+    <div class="modal-actions">
+      <button class="btn" id="addManualCancel">Cancelar</button>
+      <button class="btn primary" id="addManualSave">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* =========================================================================
    CONFIGURAÇÃO — cole aqui a URL do seu Apps Script implantado como App da Web
    (Extensões > Apps Script > Implantar > Nova implantação > App da Web)
    ========================================================================= */
-const API_URL = "https://script.google.com/macros/s/AKfycbz9N7Xlt8QoEZIpORXR9KVULOJM73x02eNSiqbXtIwEDDMYppYc7toED7lbD1Dp-0L3/exec";
+const API_URL = "COLE_AQUI_A_URL_DO_APPS_SCRIPT";
+const API_URL_OVERRIDE_KEY = 'aniversariantes_api_url_override';
+
+// Usa a URL salva no localStorage (só deste navegador, só para testes) se
+// existir; caso contrário, usa a URL fixa configurada acima no arquivo.
+function getApiUrl() {
+  return localStorage.getItem(API_URL_OVERRIDE_KEY) || API_URL;
+}
 
 const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho',
                'agosto','setembro','outubro','novembro','dezembro'];
@@ -301,17 +402,36 @@ let geralPage = 0;
 const GERAL_PAGE_SIZE = 60;
 
 // ---------- fetch helpers ----------
+async function parseApiResponse(res) {
+  const raw = await res.text();
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    const trecho = raw.replace(/\s+/g, ' ').trim().slice(0, 220);
+    let dica = '';
+    if (/accounts\.google\.com|ServiceLogin|login/i.test(trecho)) {
+      dica = ' Parece uma tela de login do Google — abra a URL do Apps Script direto no navegador (logado na conta corporativa) para autenticar, depois tente de novo.';
+    } else if (/authorization|permission|acesso negado/i.test(trecho)) {
+      dica = ' Parece um erro de permissão/autorização na implantação do Apps Script.';
+    } else if (res.status >= 500) {
+      dica = ' O Apps Script devolveu um erro interno — confira o log de execuções em Extensões > Apps Script > Execuções.';
+    } else if (trecho === '') {
+      dica = ' A resposta veio vazia — confira se a URL usada é a URL "/exec" da implantação (não a do editor nem a "/dev").';
+    }
+    throw new Error(`O servidor não respondeu em JSON (status ${res.status}).${dica} Início da resposta: "${trecho}"`);
+  }
+}
 async function apiGet() {
-  const res = await fetch(API_URL + '?action=data', { method: 'GET' });
-  return res.json();
+  const res = await fetch(getApiUrl() + '?action=data', { method: 'GET' });
+  return parseApiResponse(res);
 }
 async function apiPost(payload) {
-  const res = await fetch(API_URL, {
+  const res = await fetch(getApiUrl(), {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // evita preflight CORS no Apps Script
     body: JSON.stringify(payload)
   });
-  return res.json();
+  return parseApiResponse(res);
 }
 
 function toast(msg, kind) {
@@ -332,8 +452,8 @@ async function loadData() {
   document.getElementById('globalError').style.display = 'none';
   document.getElementById('appRoot').style.display = 'none';
   try {
-    if (!API_URL || API_URL.indexOf('COLE_AQUI') > -1) {
-      throw new Error('Configure a constante API_URL no topo do arquivo index.html com a URL do seu Apps Script implantado.');
+    if (!getApiUrl() || getApiUrl().indexOf('COLE_AQUI') > -1) {
+      throw new Error('Configure a URL do Apps Script: edite a constante API_URL no topo do index.html (vale para todo mundo), ou defina uma temporária só neste navegador em Configurações (⚙).');
     }
     const data = await apiGet();
     if (!data.ok) throw new Error(data.error || 'Erro desconhecido do servidor');
@@ -358,6 +478,7 @@ function renderAll() {
   renderGeral();
   renderCargos();
   renderCentros();
+  renderManuais();
   renderConsiderar();
   renderDesconsiderar();
   renderLog();
@@ -374,7 +495,40 @@ function buildMesSelect() {
 }
 
 // ---------- DASHBOARD ----------
+// ---------- seleção em massa ----------
+let selAvaliar = new Set();
+let selCargosNovos = new Set();
+let selCentrosNovos = new Set();
+
+function onRowCheck(scope, el) {
+  const set = scope === 'avaliar' ? selAvaliar : scope === 'cargos' ? selCargosNovos : selCentrosNovos;
+  if (el.checked) set.add(el.dataset.key); else set.delete(el.dataset.key);
+  updateBulkBar(scope);
+}
+
+function onSelectAll(scope, checked) {
+  const set = scope === 'avaliar' ? selAvaliar : scope === 'cargos' ? selCargosNovos : selCentrosNovos;
+  const tbodyId = scope === 'avaliar' ? 'tblAvaliar' : scope === 'cargos' ? 'tblCargosNovos' : 'tblCentrosNovos';
+  document.querySelectorAll(`#${tbodyId} .rowchk`).forEach(chk => {
+    chk.checked = checked;
+    if (checked) set.add(chk.dataset.key); else set.delete(chk.dataset.key);
+  });
+  updateBulkBar(scope);
+}
+
+function updateBulkBar(scope) {
+  const set = scope === 'avaliar' ? selAvaliar : scope === 'cargos' ? selCargosNovos : selCentrosNovos;
+  const barId = scope === 'avaliar' ? 'avaliarBulkBar' : scope === 'cargos' ? 'cargosBulkBar' : 'centrosBulkBar';
+  const countId = scope === 'avaliar' ? 'avaliarSelCount' : scope === 'cargos' ? 'cargosSelCount' : 'centrosSelCount';
+  document.getElementById(barId).style.display = set.size ? 'flex' : 'none';
+  document.getElementById(countId).textContent = set.size + ' selecionado' + (set.size === 1 ? '' : 's');
+}
+
 function renderDashboard() {
+  selAvaliar = new Set();
+  selCargosNovos = new Set();
+  selCentrosNovos = new Set();
+
   const doMes = STATE.dados.filter(d => d.mesAniversario === mesAtual);
   const sim = doMes.filter(d => d.analiseFinal === 'SIM').sort((a,b) => a.diaAniversario - b.diaAniversario);
   const avaliar = doMes.filter(d => d.analiseFinal === 'AVALIAR').sort((a,b) => a.diaAniversario - b.diaAniversario);
@@ -385,39 +539,68 @@ function renderDashboard() {
   document.getElementById('cardCentros').textContent = STATE.centrosNaoClassificados.length;
 
   document.getElementById('tblSim').innerHTML = sim.length ? sim.map(d => `
-    <tr><td>${d.diaAniversario}</td><td>${d.nome}</td><td>${d.cargo||''}</td><td>${d.centroCusto||''}</td><td>${d.gestor||''}</td></tr>
+    <tr><td>${d.diaAniversario}</td><td>${d.nome}${d.origem==='MANUAL'?'<span class="tag">MANUAL</span>':''}</td><td>${d.cargo||''}</td><td>${d.centroCusto||''}</td><td>${d.gestor||''}</td></tr>
   `).join('') : `<tr><td colspan="5" class="empty">Nenhum aniversariante válido neste mês.</td></tr>`;
 
+  document.getElementById('avaliarSelectAll').checked = false;
+  document.getElementById('avaliarBulkBar').style.display = 'none';
   document.getElementById('tblAvaliar').innerHTML = avaliar.length ? avaliar.map(d => `
     <tr>
-      <td>${d.diaAniversario}</td><td>${d.nome}</td><td>${d.cargo||''}</td><td>${d.centroCusto||''}</td><td>${d.gestor||''}</td>
+      <td><input type="checkbox" class="rowchk" data-key="${d.matricula}" onchange="onRowCheck('avaliar', this)"></td>
+      <td>${d.diaAniversario}</td><td>${d.nome}${d.origem==='MANUAL'?'<span class="tag">MANUAL</span>':''}</td><td>${d.cargo||''}</td><td>${d.centroCusto||''}</td><td>${d.gestor||''}</td>
       <td>
         <button class="btn ok small" onclick='openMotivoModal("colaborador","confirmar",${JSON.stringify(d.matricula)},${JSON.stringify(d.nome)})'>Confirmar</button>
         <button class="btn bad small" onclick='openMotivoModal("colaborador","rejeitar",${JSON.stringify(d.matricula)},${JSON.stringify(d.nome)})'>Rejeitar</button>
       </td>
     </tr>
-  `).join('') : `<tr><td colspan="6" class="empty">Nenhum caso a avaliar neste mês.</td></tr>`;
+  `).join('') : `<tr><td colspan="7" class="empty">Nenhum caso a avaliar neste mês.</td></tr>`;
 
+  document.getElementById('cargosSelectAll').checked = false;
+  document.getElementById('cargosBulkBar').style.display = 'none';
   document.getElementById('tblCargosNovos').innerHTML = STATE.cargosNaoClassificados.length ? STATE.cargosNaoClassificados.map(c => `
     <tr>
+      <td><input type="checkbox" class="rowchk" data-key="${c.cargo}" onchange="onRowCheck('cargos', this)"></td>
       <td>${c.cargo}</td><td>${c.ocorrencias}</td>
       <td>
         <button class="btn ok small" onclick='openMotivoModal("cargo","confirmar",null,${JSON.stringify(c.cargo)})'>Confirmar</button>
         <button class="btn bad small" onclick='acaoRapida("rejeitarCargo",{cargo:${JSON.stringify(c.cargo)}})'>Rejeitar (inválido)</button>
       </td>
     </tr>
-  `).join('') : `<tr><td colspan="3" class="empty">Nenhum cargo pendente de classificação.</td></tr>`;
+  `).join('') : `<tr><td colspan="4" class="empty">Nenhum cargo pendente de classificação.</td></tr>`;
 
+  document.getElementById('centrosSelectAll').checked = false;
+  document.getElementById('centrosBulkBar').style.display = 'none';
   document.getElementById('tblCentrosNovos').innerHTML = STATE.centrosNaoClassificados.length ? STATE.centrosNaoClassificados.map(c => `
     <tr>
+      <td><input type="checkbox" class="rowchk" data-key="${c.centro}" onchange="onRowCheck('centros', this)"></td>
       <td>${c.centro}</td><td>${c.ocorrencias}</td>
       <td>
         <button class="btn ok small" onclick='acaoRapida("confirmarCentro",{centro:${JSON.stringify(c.centro)}})'>Confirmar válido</button>
         <button class="btn bad small" onclick='acaoRapida("rejeitarCentro",{centro:${JSON.stringify(c.centro)}})'>Rejeitar</button>
       </td>
     </tr>
-  `).join('') : `<tr><td colspan="3" class="empty">Nenhum centro de custo pendente de classificação.</td></tr>`;
+  `).join('') : `<tr><td colspan="4" class="empty">Nenhum centro de custo pendente de classificação.</td></tr>`;
 }
+
+document.getElementById('avaliarSelectAll').onchange = (e) => onSelectAll('avaliar', e.target.checked);
+document.getElementById('cargosSelectAll').onchange = (e) => onSelectAll('cargos', e.target.checked);
+document.getElementById('centrosSelectAll').onchange = (e) => onSelectAll('centros', e.target.checked);
+
+document.getElementById('avaliarBulkConfirm').onclick = () => openMotivoModal('colaboradorMassa', 'confirmar', null, [...selAvaliar]);
+document.getElementById('avaliarBulkReject').onclick = () => openMotivoModal('colaboradorMassa', 'rejeitar', null, [...selAvaliar]);
+document.getElementById('cargosBulkConfirm').onclick = () => openMotivoModal('cargoMassa', 'confirmar', null, [...selCargosNovos]);
+document.getElementById('cargosBulkReject').onclick = async () => {
+  if (!selCargosNovos.size) return;
+  await runAction({ action: 'rejeitarCargosEmMassa', cargos: [...selCargosNovos] }, 'Cargos rejeitados.');
+};
+document.getElementById('centrosBulkConfirm').onclick = async () => {
+  if (!selCentrosNovos.size) return;
+  await runAction({ action: 'confirmarCentrosEmMassa', centros: [...selCentrosNovos] }, 'Centros de custo confirmados.');
+};
+document.getElementById('centrosBulkReject').onclick = async () => {
+  if (!selCentrosNovos.size) return;
+  await runAction({ action: 'rejeitarCentrosEmMassa', centros: [...selCentrosNovos] }, 'Centros de custo rejeitados.');
+};
 
 // ---------- MODAL DE MOTIVO ----------
 const MOTIVOS = [
@@ -430,14 +613,21 @@ const MOTIVOS = [
 
 let pendingAction = null;
 
-function openMotivoModal(tipo, acao, matricula, nomeOuCargo) {
+function openMotivoModal(tipo, acao, matricula, nomeOuCargoOuLista) {
   const isConfirmar = acao === 'confirmar';
-  document.getElementById('modalTitle').textContent = (isConfirmar ? 'Confirmar' : 'Rejeitar') + ': ' + nomeOuCargo;
-  document.getElementById('modalSub').textContent = isConfirmar
-    ? 'Por que este caso deve ser considerado válido?'
-    : 'Por que este caso deve ser rejeitado?';
+  const isMassa = tipo === 'colaboradorMassa' || tipo === 'cargoMassa';
 
-  const opts = tipo === 'colaborador' ? MOTIVOS : MOTIVOS.filter(m => m.v === 'cargo' || m.v === 'diretor' || m.v === 'executivo');
+  if (isMassa && (!nomeOuCargoOuLista || !nomeOuCargoOuLista.length)) return;
+
+  document.getElementById('modalTitle').textContent = isMassa
+    ? (isConfirmar ? 'Confirmar' : 'Rejeitar') + ' ' + nomeOuCargoOuLista.length + ' selecionados'
+    : (isConfirmar ? 'Confirmar' : 'Rejeitar') + ': ' + nomeOuCargoOuLista;
+  document.getElementById('modalSub').textContent = isConfirmar
+    ? 'Por que ' + (isMassa ? 'esses casos devem' : 'este caso deve') + ' ser considerado(s) válido(s)? O mesmo motivo é aplicado a todos os selecionados.'
+    : 'Por que ' + (isMassa ? 'esses casos devem' : 'este caso deve') + ' ser rejeitado(s)?';
+
+  const tipoBase = tipo === 'colaboradorMassa' ? 'colaborador' : tipo === 'cargoMassa' ? 'cargo' : tipo;
+  const opts = tipoBase === 'colaborador' ? MOTIVOS : MOTIVOS.filter(m => m.v === 'cargo' || m.v === 'diretor' || m.v === 'executivo');
   document.getElementById('modalOptions').innerHTML = opts.map((m, i) => `
     <label><input type="radio" name="motivo" value="${m.v}" ${i===0?'checked':''}> ${m.l}</label>
   `).join('');
@@ -445,7 +635,7 @@ function openMotivoModal(tipo, acao, matricula, nomeOuCargo) {
   document.getElementById('modalConfirm').className = 'btn ' + (isConfirmar ? 'primary' : 'bad');
   document.getElementById('modalConfirm').textContent = isConfirmar ? 'Confirmar' : 'Rejeitar';
 
-  pendingAction = { tipo, acao, matricula, nomeOuCargo };
+  pendingAction = { tipo, acao, matricula, nomeOuCargoOuLista };
   document.getElementById('modalMotivo').classList.add('show');
 }
 
@@ -456,19 +646,28 @@ document.getElementById('modalConfirm').onclick = async () => {
   if (!motivo || !pendingAction) return;
   document.getElementById('modalMotivo').classList.remove('show');
 
-  const { tipo, acao, matricula, nomeOuCargo } = pendingAction;
+  const { tipo, acao, matricula, nomeOuCargoOuLista } = pendingAction;
   let action;
   let payload;
   if (tipo === 'colaborador') {
     action = acao === 'confirmar' ? 'confirmarColaborador' : 'rejeitarColaborador';
     payload = { action, matricula, motivo };
+    await runAction(payload, 'Alteração salva.');
+  } else if (tipo === 'colaboradorMassa') {
+    action = acao === 'confirmar' ? 'confirmarColaboradoresEmMassa' : 'rejeitarColaboradoresEmMassa';
+    payload = { action, matriculas: nomeOuCargoOuLista, motivo };
+    await runAction(payload, 'Ação em massa aplicada.');
   } else if (tipo === 'cargo') {
     // motivo aqui é diretor / executivo / cargo — usamos endpoint genérico de cargo
     const campo = motivo === 'diretor' ? 'DIRETOR CORPORATIVO' : motivo === 'executivo' ? 'EXECUTIVO DE CONTA' : 'CARGO VÁLIDO';
     action = 'atualizarCargoCampo';
-    payload = { action, cargo: nomeOuCargo, campo, valor: 'Sim' };
+    payload = { action, cargo: nomeOuCargoOuLista, campo, valor: 'Sim' };
+    await runAction(payload, 'Alteração salva.');
+  } else if (tipo === 'cargoMassa') {
+    const campo = motivo === 'diretor' ? 'DIRETOR CORPORATIVO' : motivo === 'executivo' ? 'EXECUTIVO DE CONTA' : 'CARGO VÁLIDO';
+    payload = { action: 'confirmarCargosEmMassa', cargos: nomeOuCargoOuLista, campo };
+    await runAction(payload, 'Cargos confirmados.');
   }
-  await runAction(payload, 'Alteração salva.');
 };
 
 async function acaoRapida(action, extra) {
@@ -479,7 +678,13 @@ async function runAction(payload, successMsg) {
   try {
     const res = await apiPost(payload);
     if (!res.ok) throw new Error(res.error || 'Falha ao salvar');
-    toast(successMsg, 'ok');
+    if (res.processados !== undefined) {
+      const falhas = res.erros && res.erros.length ? ` (${res.erros.length} com erro — veja o console)` : '';
+      if (res.erros && res.erros.length) console.warn('Erros na ação em massa:', res.erros);
+      toast(`${res.processados} de ${res.total} processados com sucesso.${falhas}`, res.erros && res.erros.length ? 'bad' : 'ok');
+    } else {
+      toast(successMsg, 'ok');
+    }
     await loadData();
   } catch (err) {
     toast('Erro: ' + (err.message || err), 'bad');
@@ -509,7 +714,7 @@ function renderGeral() {
   const pageRows = filtered.slice(start, start + GERAL_PAGE_SIZE);
   document.getElementById('tblGeral').innerHTML = pageRows.length ? pageRows.map(d => `
     <tr>
-      <td>${d.matricula}</td><td>${d.nome}</td><td>${d.cargo||''}</td><td>${d.centroCusto||''}</td>
+      <td>${d.matricula}</td><td>${d.nome}${d.origem==='MANUAL'?'<span class="tag">MANUAL</span>':''}</td><td>${d.cargo||''}</td><td>${d.centroCusto||''}</td>
       <td>${d.gestor||''}</td><td>${d.dataNascimento||''}</td><td>${badge(d.analiseFinal)}</td>
     </tr>
   `).join('') : `<tr><td colspan="7" class="empty">Nenhum registro encontrado.</td></tr>`;
@@ -568,6 +773,18 @@ async function setCentroField(centro, valor) {
 }
 document.getElementById('centroBusca').oninput = renderCentros;
 
+// ---------- COLABORADORES MANUAIS ----------
+function renderManuais() {
+  const manuais = STATE.dados.filter(d => d.origem === 'MANUAL').sort((a,b) => a.nome.localeCompare(b.nome));
+  document.getElementById('tblManuais').innerHTML = manuais.length ? manuais.map(d => `
+    <tr>
+      <td>${d.matricula}</td><td>${d.nome}</td><td>${d.cargo||''}</td><td>${d.centroCusto||''}</td>
+      <td>${d.dataNascimento||''}</td><td>${badge(d.analiseFinal)}</td>
+      <td><button class="btn bad small" onclick='removerManual(${JSON.stringify(d.matricula)},${JSON.stringify(d.nome)})'>Remover</button></td>
+    </tr>
+  `).join('') : `<tr><td colspan="7" class="empty">Nenhum colaborador incluído manualmente ainda.</td></tr>`;
+}
+
 // ---------- CONSIDERAR / DESCONSIDERAR ----------
 function renderConsiderar() {
   document.getElementById('tblConsiderar').innerHTML = STATE.considerar.length ? STATE.considerar.map(c => `
@@ -605,6 +822,24 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 document.getElementById('btnReload').onclick = loadData;
 
 // ---------- ATUALIZAR BASE (upload xlsx) ----------
+document.getElementById('btnUpdateFromDrive').onclick = async () => {
+  const btn = document.getElementById('btnUpdateFromDrive');
+  const textoOriginal = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '↻ Atualizando…';
+  try {
+    const res = await apiPost({ action: 'atualizarDadosDoDrive' });
+    if (!res.ok) throw new Error(res.error || 'Falha ao atualizar do Drive');
+    toast(`Base atualizada do Drive: ${res.linhas} linhas (arquivo "${res.arquivo}", modificado em ${res.modificadoEm}).`, 'ok');
+    await loadData();
+  } catch (err) {
+    toast('Erro ao atualizar do Drive: ' + (err.message || err), 'bad');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = textoOriginal;
+  }
+};
+
 document.getElementById('btnUpdateData').onclick = () => document.getElementById('modalUpdate').classList.add('show');
 document.getElementById('updateCancel').onclick = () => document.getElementById('modalUpdate').classList.remove('show');
 
@@ -678,6 +913,93 @@ document.getElementById('updateConfirm').onclick = async () => {
     statusEl.textContent = 'Erro: ' + err.message;
   }
 };
+
+// ---------- CONFIGURAÇÕES ----------
+document.getElementById('btnSettings').onclick = () => {
+  document.getElementById('settingsDriveInput').value = (STATE && STATE.config && STATE.config.driveFileId) || '';
+  document.getElementById('settingsApiInput').value = localStorage.getItem(API_URL_OVERRIDE_KEY) || '';
+  document.getElementById('settingsDriveStatus').textContent = '';
+  document.getElementById('settingsApiStatus').textContent = '';
+  document.getElementById('modalSettings').classList.add('show');
+};
+document.getElementById('settingsClose').onclick = () => document.getElementById('modalSettings').classList.remove('show');
+
+document.getElementById('settingsDriveSave').onclick = async () => {
+  const val = document.getElementById('settingsDriveInput').value.trim();
+  const statusEl = document.getElementById('settingsDriveStatus');
+  if (!val) { statusEl.textContent = 'Cole o link ou ID da planilha.'; return; }
+  statusEl.textContent = 'Salvando…';
+  try {
+    const res = await apiPost({ action: 'atualizarConfig', driveFileId: val });
+    if (!res.ok) throw new Error(res.error || 'Falha ao salvar');
+    statusEl.textContent = 'Salvo! Vale para todo mundo a partir de agora.';
+    toast('Planilha do LG atualizada.', 'ok');
+    await loadData();
+  } catch (err) {
+    statusEl.textContent = 'Erro: ' + (err.message || err);
+  }
+};
+
+document.getElementById('settingsApiSave').onclick = () => {
+  const val = document.getElementById('settingsApiInput').value.trim();
+  const statusEl = document.getElementById('settingsApiStatus');
+  if (!val) { statusEl.textContent = 'Cole a URL do Apps Script.'; return; }
+  localStorage.setItem(API_URL_OVERRIDE_KEY, val);
+  statusEl.textContent = 'Usando essa URL só neste navegador. Recarregando…';
+  setTimeout(loadData, 500);
+};
+
+document.getElementById('settingsApiClear').onclick = () => {
+  localStorage.removeItem(API_URL_OVERRIDE_KEY);
+  document.getElementById('settingsApiInput').value = '';
+  document.getElementById('settingsApiStatus').textContent = 'Voltou a usar a URL padrão do arquivo. Recarregando…';
+  setTimeout(loadData, 500);
+};
+
+// ---------- COLABORADOR MANUAL (PJ, estagiário, consultor...) ----------
+document.getElementById('btnAddManual').onclick = () => {
+  ['addNome','addCargo','addNascimento','addCentro','addGestor','addAdmissao','addEmail','addMatricula']
+    .forEach(id => document.getElementById(id).value = '');
+  document.getElementById('addManualStatus').textContent = '';
+  document.getElementById('modalAddManual').classList.add('show');
+};
+document.getElementById('addManualCancel').onclick = () => document.getElementById('modalAddManual').classList.remove('show');
+
+document.getElementById('addManualSave').onclick = async () => {
+  const statusEl = document.getElementById('addManualStatus');
+  const nome = document.getElementById('addNome').value.trim();
+  const nascimento = document.getElementById('addNascimento').value;
+  if (!nome) { statusEl.textContent = 'Informe o nome.'; return; }
+  if (!nascimento) { statusEl.textContent = 'Informe a data de nascimento.'; return; }
+
+  const dadosColaborador = {
+    nome,
+    cargo: document.getElementById('addCargo').value.trim(),
+    dataNascimento: nascimento,
+    dataAdmissao: document.getElementById('addAdmissao').value,
+    centroCustoNome: document.getElementById('addCentro').value.trim(),
+    gestor: document.getElementById('addGestor').value.trim(),
+    emailCorporativo: document.getElementById('addEmail').value.trim(),
+    matricula: document.getElementById('addMatricula').value.trim()
+  };
+
+  statusEl.textContent = 'Salvando…';
+  try {
+    const res = await apiPost({ action: 'adicionarColaboradorManual', dados: dadosColaborador });
+    if (!res.ok) throw new Error(res.error || 'Falha ao salvar');
+    statusEl.textContent = 'Incluído (matrícula ' + res.matricula + ')!';
+    toast('Colaborador incluído.', 'ok');
+    setTimeout(() => document.getElementById('modalAddManual').classList.remove('show'), 600);
+    await loadData();
+  } catch (err) {
+    statusEl.textContent = 'Erro: ' + (err.message || err);
+  }
+};
+
+async function removerManual(matricula, nome) {
+  if (!confirm(`Remover ${nome} dos colaboradores incluídos manualmente?`)) return;
+  await runAction({ action: 'removerColaboradorManual', matricula }, 'Colaborador removido.');
+}
 
 // ---------- INIT ----------
 loadData();
