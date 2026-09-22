@@ -843,17 +843,46 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 document.getElementById('btnReload').onclick = loadData;
 
 // ---------- ATUALIZAR BASE (upload xlsx) ----------
+async function apiGetStatusAtualizacaoDrive() {
+  const res = await fetch(getApiUrl() + '?action=statusAtualizacaoDrive', { method: 'GET' });
+  return parseApiResponse(res);
+}
+
 document.getElementById('btnUpdateFromDrive').onclick = async () => {
   const btn = document.getElementById('btnUpdateFromDrive');
   const textoOriginal = btn.textContent;
   btn.disabled = true;
-  btn.textContent = '↻ Atualizando…';
   try {
-    const res = await apiPost({ action: 'atualizarDadosDoDrive' });
-    if (!res.ok) throw new Error(res.error || 'Falha ao atualizar do Drive');
-    const infoData = res.modificadoEm ? `, modificado em ${res.modificadoEm}` : '';
-    toast(`Base atualizada do Drive: ${res.linhas} linhas (arquivo "${res.arquivo}"${infoData}).`, 'ok');
-    await loadData();
+    const agenda = await apiPost({ action: 'atualizarDadosDoDrive' });
+    if (!agenda.ok) throw new Error(agenda.error || 'Falha ao agendar a atualização.');
+    toast(agenda.jaEmAndamento
+      ? 'Já tem uma atualização em andamento — aguardando terminar…'
+      : 'Atualização iniciada em segundo plano — isso evita que a conexão caia em bases grandes.', 'ok');
+
+    const inicio = Date.now();
+    const limiteMs = 6 * 60 * 1000; // até 6 min de espera aqui na tela
+    while (Date.now() - inicio < limiteMs) {
+      btn.textContent = `↻ Atualizando… (${Math.round((Date.now() - inicio) / 1000)}s)`;
+      await new Promise(r => setTimeout(r, 3000));
+
+      let status;
+      try { status = await apiGetStatusAtualizacaoDrive(); } catch (e) { continue; } // rede falhou no meio do caminho — tenta de novo
+      if (!status.ok) continue;
+
+      if (status.status === 'DONE') {
+        const res = status.resultado || {};
+        const infoData = res.modificadoEm ? `, modificado em ${res.modificadoEm}` : '';
+        toast(`Base atualizada do Drive: ${res.linhas} linhas (arquivo "${res.arquivo}"${infoData}).`, 'ok');
+        await loadData();
+        return;
+      }
+      if (status.status === 'ERROR') {
+        const res = status.resultado || {};
+        throw new Error(res.error || 'Falha na atualização em segundo plano.');
+      }
+      // status ainda RUNNING — continua esperando
+    }
+    toast('Está demorando mais que o normal, mas continua rodando em segundo plano no Google. Clique em Recarregar daqui a pouco pra conferir se já terminou.', 'bad');
   } catch (err) {
     toast('Erro ao atualizar do Drive: ' + (err.message || err), 'bad');
   } finally {
