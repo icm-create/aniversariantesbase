@@ -324,7 +324,10 @@
     <h3>Configurações</h3>
 
     <p style="margin-bottom:6px"><b>Planilha do LG (Drive)</b></p>
-    <p>Cole o link ou o ID da Google Sheet do LG. Vale para todo mundo que usa a
+    <p>Cole o link ou o ID da Google Sheet do LG. Se colar o link completo com
+      <code>#gid=...</code> (a aba específica), o app lê direto essa aba, o que
+      é bem mais rápido do que varrer a planilha inteira. Vale para todo mundo
+      que usa a
       aplicação — não precisa mexer em código.</p>
     <input type="text" id="settingsDriveInput" placeholder="https://docs.google.com/spreadsheets/d/.../edit"
       style="width:100%;margin-bottom:8px">
@@ -935,7 +938,10 @@ document.getElementById('updateConfirm').onclick = async () => {
 
 // ---------- CONFIGURAÇÕES ----------
 document.getElementById('btnSettings').onclick = () => {
-  document.getElementById('settingsDriveInput').value = (STATE && STATE.config && STATE.config.driveFileId) || '';
+  const cfg = (STATE && STATE.config) || {};
+  document.getElementById('settingsDriveInput').value = cfg.driveFileId
+    ? `https://docs.google.com/spreadsheets/d/${cfg.driveFileId}/edit${cfg.driveSheetGid ? '#gid=' + cfg.driveSheetGid : ''}`
+    : '';
   document.getElementById('settingsApiInput').value = localStorage.getItem(API_URL_OVERRIDE_KEY) || '';
   document.getElementById('settingsDriveStatus').textContent = '';
   document.getElementById('settingsApiStatus').textContent = '';
