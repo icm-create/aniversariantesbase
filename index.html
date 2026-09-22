@@ -848,7 +848,8 @@ document.getElementById('btnUpdateFromDrive').onclick = async () => {
   try {
     const res = await apiPost({ action: 'atualizarDadosDoDrive' });
     if (!res.ok) throw new Error(res.error || 'Falha ao atualizar do Drive');
-    toast(`Base atualizada do Drive: ${res.linhas} linhas (arquivo "${res.arquivo}", modificado em ${res.modificadoEm}).`, 'ok');
+    const infoData = res.modificadoEm ? `, modificado em ${res.modificadoEm}` : '';
+    toast(`Base atualizada do Drive: ${res.linhas} linhas (arquivo "${res.arquivo}"${infoData}).`, 'ok');
     await loadData();
   } catch (err) {
     toast('Erro ao atualizar do Drive: ' + (err.message || err), 'bad');
