@@ -129,6 +129,8 @@
       <div class="toolbar">
         <label style="font-size:13px;color:var(--muted)">Mês:</label>
         <select id="mesSelect"></select>
+        <label style="font-size:13px;color:var(--muted)">Dia:</label>
+        <select id="diaSelect"><option value="">Todos</option></select>
       </div>
 
       <div class="cards">
@@ -398,6 +400,7 @@ const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho',
 
 let STATE = null;         // payload completo do backend
 let mesAtual = new Date().getMonth() + 1;
+let diaAtual = ''; // '' = todos os dias do mês
 let geralPage = 0;
 const GERAL_PAGE_SIZE = 60;
 
@@ -488,10 +491,25 @@ function buildMesSelect() {
   const sel = document.getElementById('mesSelect');
   sel.innerHTML = MESES.map((m, i) => `<option value="${i+1}">${m}</option>`).join('');
   sel.value = mesAtual;
-  sel.onchange = () => { mesAtual = parseInt(sel.value, 10); renderDashboard(); };
+  sel.onchange = () => { mesAtual = parseInt(sel.value, 10); diaAtual = ''; buildDiaSelect(); renderDashboard(); };
 
   const gm = document.getElementById('geralMes');
   gm.innerHTML = '<option value="">Todos os meses</option>' + MESES.map((m, i) => `<option value="${i+1}">${m}</option>`).join('');
+
+  buildDiaSelect();
+}
+
+// Lista só os dias que realmente têm alguém fazendo aniversário no mês
+// selecionado (em vez de sempre 1–31), o que já ajuda a enxergar de cara
+// quais dias têm gente para avaliar.
+function buildDiaSelect() {
+  const sel = document.getElementById('diaSelect');
+  const dias = [...new Set(STATE.dados.filter(d => d.mesAniversario === mesAtual).map(d => d.diaAniversario))]
+    .filter(d => d != null).sort((a,b) => a - b);
+  if (diaAtual && !dias.includes(parseInt(diaAtual, 10))) diaAtual = '';
+  sel.innerHTML = '<option value="">Todos</option>' + dias.map(d => `<option value="${d}">${d}</option>`).join('');
+  sel.value = diaAtual;
+  sel.onchange = () => { diaAtual = sel.value; renderDashboard(); };
 }
 
 // ---------- DASHBOARD ----------
@@ -529,7 +547,7 @@ function renderDashboard() {
   selCargosNovos = new Set();
   selCentrosNovos = new Set();
 
-  const doMes = STATE.dados.filter(d => d.mesAniversario === mesAtual);
+  const doMes = STATE.dados.filter(d => d.mesAniversario === mesAtual && (!diaAtual || d.diaAniversario === parseInt(diaAtual, 10)));
   const sim = doMes.filter(d => d.analiseFinal === 'SIM').sort((a,b) => a.diaAniversario - b.diaAniversario);
   const avaliar = doMes.filter(d => d.analiseFinal === 'AVALIAR').sort((a,b) => a.diaAniversario - b.diaAniversario);
 
