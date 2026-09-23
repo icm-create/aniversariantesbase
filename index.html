@@ -144,7 +144,7 @@
         <h2>Aniversariantes válidos do mês</h2>
         <div class="sub">Status atual: SIM</div>
         <div class="tablewrap"><table>
-          <thead><tr><th>Dia</th><th>Nome</th><th>Cargo</th><th>Centro de Custo</th><th>Gestor</th></tr></thead>
+          <thead><tr><th>Dia</th><th>Nome</th><th>Cargo</th><th>Centro de Custo</th><th>Gestor</th><th>Ação</th></tr></thead>
           <tbody id="tblSim"></tbody>
         </table></div>
       </div>
@@ -560,8 +560,11 @@ function renderDashboard() {
   document.getElementById('cardCentros').textContent = STATE.centrosNaoClassificados.length;
 
   document.getElementById('tblSim').innerHTML = sim.length ? sim.map(d => `
-    <tr><td>${d.diaAniversario}</td><td>${d.nome}${d.origem==='MANUAL'?'<span class="tag">MANUAL</span>':''}</td><td>${d.cargo||''}</td><td>${d.centroCusto||''}</td><td>${d.gestor||''}</td></tr>
-  `).join('') : `<tr><td colspan="5" class="empty">Nenhum aniversariante válido neste mês.</td></tr>`;
+    <tr>
+      <td>${d.diaAniversario}</td><td>${d.nome}${d.origem==='MANUAL'?'<span class="tag">MANUAL</span>':''}</td><td>${d.cargo||''}</td><td>${d.centroCusto||''}</td><td>${d.gestor||''}</td>
+      <td><button class="btn bad small" onclick='openMotivoModal("colaborador","rejeitar",${JSON.stringify(d.matricula)},${JSON.stringify(d.nome)})'>Rejeitar</button></td>
+    </tr>
+  `).join('') : `<tr><td colspan="6" class="empty">Nenhum aniversariante válido neste mês.</td></tr>`;
 
   document.getElementById('avaliarSelectAll').checked = false;
   document.getElementById('avaliarBulkBar').style.display = 'none';
@@ -625,11 +628,11 @@ document.getElementById('centrosBulkReject').onclick = async () => {
 
 // ---------- MODAL DE MOTIVO ----------
 const MOTIVOS = [
-  { v: 'executivo', l: 'É executivo de conta' },
-  { v: 'diretor', l: 'É diretor' },
-  { v: 'cargo', l: 'O cargo é válido' },
-  { v: 'centro', l: 'É pelo centro de custo válido' },
-  { v: 'colaborador', l: 'Apenas confirmação do colaborador (individual)' }
+  { v: 'executivo', l: 'Executivo de conta' },
+  { v: 'diretor', l: 'Diretor' },
+  { v: 'cargo', l: 'Cargo' },
+  { v: 'centro', l: 'Centro de Custo' },
+  { v: 'colaborador', l: 'Colaborador' }
 ];
 
 let pendingAction = null;
@@ -643,14 +646,15 @@ function openMotivoModal(tipo, acao, matricula, nomeOuCargoOuLista) {
   document.getElementById('modalTitle').textContent = isMassa
     ? (isConfirmar ? 'Confirmar' : 'Rejeitar') + ' ' + nomeOuCargoOuLista.length + ' selecionados'
     : (isConfirmar ? 'Confirmar' : 'Rejeitar') + ': ' + nomeOuCargoOuLista;
-  document.getElementById('modalSub').textContent = isConfirmar
-    ? 'Por que ' + (isMassa ? 'esses casos devem' : 'este caso deve') + ' ser considerado(s) válido(s)? O mesmo motivo é aplicado a todos os selecionados.'
-    : 'Por que ' + (isMassa ? 'esses casos devem' : 'este caso deve') + ' ser rejeitado(s)?';
+  document.getElementById('modalSub').textContent = (isConfirmar
+    ? 'Por que ' + (isMassa ? 'esses casos devem' : 'este caso deve') + ' ser considerado(s) válido(s)?'
+    : 'Por que ' + (isMassa ? 'esses casos devem' : 'este caso deve') + ' ser rejeitado(s)?')
+    + ' Pode marcar mais de um motivo.';
 
   const tipoBase = tipo === 'colaboradorMassa' ? 'colaborador' : tipo === 'cargoMassa' ? 'cargo' : tipo;
   const opts = tipoBase === 'colaborador' ? MOTIVOS : MOTIVOS.filter(m => m.v === 'cargo' || m.v === 'diretor' || m.v === 'executivo');
   document.getElementById('modalOptions').innerHTML = opts.map((m, i) => `
-    <label><input type="radio" name="motivo" value="${m.v}" ${i===0?'checked':''}> ${m.l}</label>
+    <label><input type="checkbox" name="motivo" value="${m.v}" ${i===0?'checked':''}> ${m.l}</label>
   `).join('');
 
   document.getElementById('modalConfirm').className = 'btn ' + (isConfirmar ? 'primary' : 'bad');
@@ -663,8 +667,8 @@ function openMotivoModal(tipo, acao, matricula, nomeOuCargoOuLista) {
 document.getElementById('modalCancel').onclick = () => document.getElementById('modalMotivo').classList.remove('show');
 
 document.getElementById('modalConfirm').onclick = async () => {
-  const motivo = document.querySelector('input[name=motivo]:checked')?.value;
-  if (!motivo || !pendingAction) return;
+  const motivos = [...document.querySelectorAll('input[name=motivo]:checked')].map(el => el.value);
+  if (!motivos.length || !pendingAction) return;
   document.getElementById('modalMotivo').classList.remove('show');
 
   const { tipo, acao, matricula, nomeOuCargoOuLista } = pendingAction;
@@ -672,21 +676,17 @@ document.getElementById('modalConfirm').onclick = async () => {
   let payload;
   if (tipo === 'colaborador') {
     action = acao === 'confirmar' ? 'confirmarColaborador' : 'rejeitarColaborador';
-    payload = { action, matricula, motivo };
+    payload = { action, matricula, motivos };
     await runAction(payload, 'Alteração salva.');
   } else if (tipo === 'colaboradorMassa') {
     action = acao === 'confirmar' ? 'confirmarColaboradoresEmMassa' : 'rejeitarColaboradoresEmMassa';
-    payload = { action, matriculas: nomeOuCargoOuLista, motivo };
+    payload = { action, matriculas: nomeOuCargoOuLista, motivos };
     await runAction(payload, 'Ação em massa aplicada.');
   } else if (tipo === 'cargo') {
-    // motivo aqui é diretor / executivo / cargo — usamos endpoint genérico de cargo
-    const campo = motivo === 'diretor' ? 'DIRETOR CORPORATIVO' : motivo === 'executivo' ? 'EXECUTIVO DE CONTA' : 'CARGO VÁLIDO';
-    action = 'atualizarCargoCampo';
-    payload = { action, cargo: nomeOuCargoOuLista, campo, valor: 'Sim' };
+    payload = { action: 'confirmarCargoMotivos', cargo: nomeOuCargoOuLista, motivos };
     await runAction(payload, 'Alteração salva.');
   } else if (tipo === 'cargoMassa') {
-    const campo = motivo === 'diretor' ? 'DIRETOR CORPORATIVO' : motivo === 'executivo' ? 'EXECUTIVO DE CONTA' : 'CARGO VÁLIDO';
-    payload = { action: 'confirmarCargosEmMassa', cargos: nomeOuCargoOuLista, campo };
+    payload = { action: 'confirmarCargosEmMassa', cargos: nomeOuCargoOuLista, motivos };
     await runAction(payload, 'Cargos confirmados.');
   }
 };
